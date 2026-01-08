@@ -2,6 +2,7 @@ use agent::{DbThreadMetadata, NativeAgentServer};
 use agent_client_protocol as acp;
 use agent_servers::AgentServer;
 use agent_settings::AgentSettings;
+use agent_ui::AgentSessions;
 use agent_ui::acp::AcpThreadView;
 use chrono::Utc;
 use fs::Fs;
@@ -84,13 +85,22 @@ impl AgentThreadPane {
         workspace: WeakEntity<Workspace>,
         project: Entity<Project>,
         prompt_store: Option<Entity<PromptStore>>,
+        agent_sessions: AgentSessions,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let resume_thread = DbThreadMetadata {
-            id: session_id.clone(),
-            title: "New Thread".into(), // BENTODO: Load from agent sessions?
-            updated_at: Utc::now(),
+        let resume_thread = if let Some(session) = agent_sessions.get(&session_id) {
+            DbThreadMetadata {
+                title: session.display_title(),
+                id: session.session_id,
+                updated_at: session.updated_at.unwrap_or_else(Utc::now),
+            }
+        } else {
+            DbThreadMetadata {
+                id: session_id.clone(),
+                title: "New Thread".into(),
+                updated_at: Utc::now(),
+            }
         };
 
         let agent: Rc<dyn AgentServer> = Rc::new(NativeAgentServer::new(fs));
@@ -103,7 +113,7 @@ impl AgentThreadPane {
                 workspace,
                 project,
                 prompt_store,
-                None, // BENTODO: SHould this be set?
+                agent_sessions,
                 true,
                 window,
                 cx,

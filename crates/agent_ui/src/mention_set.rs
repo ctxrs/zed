@@ -4,7 +4,6 @@ use agent_client_protocol as acp;
 use agent_servers::{AgentServer, AgentServerDelegate};
 use anyhow::{Context as _, Result, anyhow};
 use assistant_slash_commands::codeblock_fence_for_path;
-use assistant_text_thread::TextThreadStore;
 use collections::{HashMap, HashSet};
 use editor::{
     Anchor, Editor, EditorSnapshot, ExcerptId, FoldPlaceholder, ToOffset,
@@ -61,7 +60,6 @@ pub struct MentionImage {
 
 pub struct MentionSet {
     project: WeakEntity<Project>,
-    text_thread_store: Option<Entity<TextThreadStore>>, // BENTODO: This needs to be set or removed
     prompt_store: Option<Entity<PromptStore>>,
     mentions: HashMap<CreaseId, (MentionUri, MentionTask)>,
 }
@@ -70,7 +68,6 @@ impl MentionSet {
     pub fn new(project: WeakEntity<Project>, prompt_store: Option<Entity<PromptStore>>) -> Self {
         Self {
             project,
-            text_thread_store: None,
             prompt_store,
             mentions: HashMap::default(),
         }
@@ -215,7 +212,7 @@ impl MentionSet {
             }
             MentionUri::Directory { .. } => Task::ready(Ok(Mention::Link)),
             MentionUri::Thread { id, .. } => self.confirm_mention_for_thread(id, cx),
-            MentionUri::TextThread { path, .. } => self.confirm_mention_for_text_thread(path, cx),
+            MentionUri::TextThread { .. } => Task::ready(Err(anyhow!("text thread not supported"))),
             MentionUri::File { abs_path } => {
                 self.confirm_mention_for_file(abs_path, supports_images, cx)
             }
@@ -489,26 +486,6 @@ impl MentionSet {
                 .await?;
             Ok(Mention::Text {
                 content: summary.to_string(),
-                tracked_buffers: Vec::new(),
-            })
-        })
-    }
-
-    fn confirm_mention_for_text_thread(
-        &mut self,
-        path: PathBuf,
-        cx: &mut Context<Self>,
-    ) -> Task<Result<Mention>> {
-        let Some(text_thread_store) = self.text_thread_store.clone() else {
-            return Task::ready(Err(anyhow!("text thread store not available")));
-        };
-        let text_thread_task =
-            text_thread_store.update(cx, |store, cx| store.open_local(path.as_path().into(), cx));
-        cx.spawn(async move |_, cx| {
-            let text_thread = text_thread_task.await?;
-            let xml = text_thread.update(cx, |text_thread, cx| text_thread.to_xml(cx));
-            Ok(Mention::Text {
-                content: xml,
                 tracked_buffers: Vec::new(),
             })
         })

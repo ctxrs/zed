@@ -64,7 +64,7 @@ pub struct PromptEditor<T> {
     mention_set: Entity<MentionSet>,
     prompt_store: Option<Entity<PromptStore>>,
     workspace: WeakEntity<Workspace>,
-    agent_sessions: Option<AgentSessions>, // BENTODO: WHEN IS THIS SET
+    agent_sessions: Option<AgentSessions>,
     model_selector: Entity<AgentModelSelector>,
     edited_since_done: bool,
     prompt_history: VecDeque<String>,
@@ -1216,7 +1216,7 @@ impl PromptCompletionProviderDelegate for PromptEditorCompletionProviderDelegate
             return Vec::new();
         };
         sessions
-            .get()
+            .list()
             .into_iter()
             .map(|session| {
                 ThreadCompletionEntry::agent_session(

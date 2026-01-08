@@ -3,13 +3,14 @@ use agent::NativeAgentConnection;
 use agent_client_protocol as acp;
 use agent_servers::{AgentServer, AgentServerDelegate};
 use agent_settings::AgentSettings;
+use agent_ui::AgentSessions;
 use anyhow::Result;
 use db::kvp::KEY_VALUE_STORE;
 use feature_flags::{AgentV2FeatureFlag, FeatureFlagAppExt};
 use fs::Fs;
 use gpui::{
-    Action, AsyncWindowContext, Entity, EventEmitter, Focusable, Pixels, SharedString,
-    Subscription, Task, WeakEntity, actions, prelude::*,
+    Action, AsyncWindowContext, Entity, EventEmitter, Focusable, Pixels, Subscription, Task,
+    WeakEntity, actions, prelude::*,
 };
 use project::Project;
 use prompt_store::PromptStore;
@@ -62,6 +63,7 @@ pub struct AgentsPanel {
     agent_thread_pane: Option<Entity<AgentThreadPane>>,
     history: Entity<AcpThreadHistory>,
     agent_session_list: Option<Rc<dyn AgentSessionList>>,
+    agent_sessions: AgentSessions,
     prompt_store: Option<Entity<PromptStore>>,
     fs: Arc<dyn Fs>,
     width: Option<Pixels>,
@@ -147,6 +149,7 @@ impl AgentsPanel {
             history,
             agent_session_list: None,
             prompt_store,
+            agent_sessions: AgentSessions::new(),
             fs,
             width: None,
             pending_serialization: Task::ready(None),
@@ -286,6 +289,7 @@ impl AgentsPanel {
         let workspace = self.workspace.clone();
         let project = self.project.clone();
         let prompt_store = self.prompt_store.clone();
+        let agent_sessions = self.agent_sessions.clone();
 
         let agent_thread_pane = cx.new(|cx| {
             let mut pane = AgentThreadPane::new(workspace.clone(), cx);
@@ -295,6 +299,7 @@ impl AgentsPanel {
                 workspace.clone(),
                 project,
                 prompt_store,
+                agent_sessions,
                 window,
                 cx,
             );

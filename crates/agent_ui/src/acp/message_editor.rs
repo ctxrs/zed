@@ -101,7 +101,7 @@ impl PromptCompletionProviderDelegate for Entity<MessageEditor> {
             return Vec::new();
         };
         sessions
-            .get()
+            .list()
             .into_iter()
             .map(|session| {
                 ThreadCompletionEntry::agent_session(

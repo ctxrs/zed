@@ -1,9 +1,9 @@
 use std::{ops::Range, path::Path, rc::Rc, sync::Arc, time::Duration};
 
-use acp_thread::{AgentSessionInfo, AgentSessionList, SessionListParams};
-
 use acp_thread::AcpThread;
+use acp_thread::{AgentSessionInfo, AgentSessionList, SessionListParams};
 use agent::{ContextServerRegistry, DbThreadMetadata};
+use agent_client_protocol as acp;
 use agent_servers::AgentServer;
 use db::kvp::{Dismissable, KEY_VALUE_STORE};
 use parking_lot::Mutex;
@@ -87,7 +87,7 @@ pub struct AgentSessions {
 }
 
 impl AgentSessions {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             inner: Arc::new(Mutex::new(Vec::new())),
         }
@@ -101,13 +101,21 @@ impl AgentSessions {
         self.inner.lock().clear();
     }
 
-    fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.inner.lock().is_empty()
     }
 
     /// Returns a snapshot of the current sessions.
-    pub fn get(&self) -> Vec<AgentSessionInfo> {
+    pub fn list(&self) -> Vec<AgentSessionInfo> {
         self.inner.lock().clone()
+    }
+
+    pub fn get(&self, session_id: &acp::SessionId) -> Option<AgentSessionInfo> {
+        self.inner
+            .lock()
+            .iter()
+            .find(|session| &session.session_id == session_id)
+            .cloned()
     }
 }
 
@@ -336,6 +344,7 @@ impl ActiveView {
         prompt_store: Option<Entity<PromptStore>>,
         project: Entity<Project>,
         workspace: WeakEntity<Workspace>,
+        agent_sessions: AgentSessions,
         window: &mut Window,
         cx: &mut App,
     ) -> Self {
@@ -347,7 +356,7 @@ impl ActiveView {
                 workspace,
                 project,
                 prompt_store,
-                None, //BENTODO: Need sessions here?
+                agent_sessions,
                 false,
                 window,
                 cx,
@@ -576,6 +585,7 @@ impl AgentPanel {
         let language_registry = project.read(cx).languages().clone();
         let client = workspace.client().clone();
         let workspace = workspace.weak_handle();
+        let agent_sessions = AgentSessions::new();
 
         let context_server_registry =
             cx.new(|cx| ContextServerRegistry::new(project.read(cx).context_server_store(), cx));
@@ -660,6 +670,7 @@ impl AgentPanel {
                 prompt_store.clone(),
                 project.clone(),
                 workspace.clone(),
+                agent_sessions.clone(),
                 window,
                 cx,
             ),
@@ -776,7 +787,7 @@ impl AgentPanel {
             loading: false,
             show_trust_workspace_message: false,
             agent_session_list: None,
-            agent_sessions: AgentSessions::new(),
+            agent_sessions,
             agent_delete_supported: false,
             agent_delete_all_supported: false,
             _agent_sessions_refresh_task: Task::ready(()),
@@ -868,11 +879,7 @@ impl AgentPanel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let sessions = self.agent_sessions.get();
-        let Some(session) = sessions
-            .iter()
-            .find(|s| s.session_id == action.from_session_id)
-        else {
+        let Some(session) = self.agent_sessions.get(&action.from_session_id) else {
             return;
         };
 
@@ -1175,7 +1182,7 @@ impl AgentPanel {
                     )
                     .child(v_flex().p_1().pr_1p5().gap_1().children(
                         self.agent_sessions
-                            .get()
+                            .list()
                             .into_iter()
                             .take(3)
                             .enumerate()
@@ -1732,7 +1739,7 @@ impl AgentPanel {
 
         match navigation_mode {
             NavigationMode::AgentSessions => {
-                let sessions = panel.read(cx).agent_sessions.get();
+                let sessions = panel.read(cx).agent_sessions.list();
                 if sessions.is_empty() {
                     return menu;
                 }
@@ -1973,7 +1980,7 @@ impl AgentPanel {
                 workspace.clone(),
                 project,
                 self.prompt_store.clone(),
-                Some(self.agent_sessions.clone()),
+                self.agent_sessions.clone(),
                 !loading,
                 window,
                 cx,
@@ -3636,7 +3643,7 @@ mod tests {
                         workspace.downgrade(),
                         project.clone(),
                         None,
-                        None,
+                        AgentSessions::new(),
                         false,
                         window,
                         cx,
@@ -3752,7 +3759,7 @@ mod tests {
         cx.run_until_parked();
 
         panel.read_with(cx, |panel, _cx| {
-            let sessions = panel.agent_sessions.get();
+            let sessions = panel.agent_sessions.list();
             assert_eq!(sessions.len(), 5);
             assert!(panel.agent_delete_supported);
             assert!(!panel.agent_delete_all_supported);
@@ -3779,7 +3786,7 @@ mod tests {
         cx.run_until_parked();
 
         panel.read_with(cx, |panel, _cx| {
-            assert_eq!(panel.agent_sessions.get().len(), 3);
+            assert_eq!(panel.agent_sessions.list().len(), 3);
         });
 
         panel.update_in(cx, |panel, window, cx| {

@@ -1,6 +1,5 @@
 mod db;
 mod edit_agent;
-mod history_store;
 mod legacy_thread;
 mod native_agent_server;
 pub mod outline;
@@ -12,7 +11,6 @@ mod tools;
 
 use context_server::ContextServerId;
 pub use db::*;
-pub use history_store::*;
 pub use native_agent_server::NativeAgentServer;
 pub use templates::*;
 pub use thread::*;
