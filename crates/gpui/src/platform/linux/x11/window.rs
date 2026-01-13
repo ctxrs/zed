@@ -12,6 +12,8 @@ use crate::{
 
 use blade_graphics as gpu;
 use collections::FxHashSet;
+#[cfg(any(test, feature = "test-support"))]
+use image::RgbaImage;
 use raw_window_handle as rwh;
 use util::{ResultExt, maybe};
 use x11rb::{
@@ -1566,6 +1568,12 @@ impl PlatformWindow for X11Window {
     fn draw(&self, scene: &Scene) {
         let mut inner = self.0.state.borrow_mut();
         inner.renderer.draw(scene);
+    }
+
+    #[cfg(any(test, feature = "test-support"))]
+    fn render_to_image(&self, scene: &Scene) -> anyhow::Result<RgbaImage> {
+        let mut inner = self.0.state.borrow_mut();
+        inner.renderer.render_to_image(scene)
     }
 
     fn sprite_atlas(&self) -> Arc<dyn PlatformAtlas> {
