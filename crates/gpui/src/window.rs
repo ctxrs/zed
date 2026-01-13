@@ -3893,6 +3893,13 @@ impl Window {
         }
     }
 
+    /// Dispatch a platform input event through the normal event handling path.
+    ///
+    /// This wrapper keeps the private `DispatchEventResult` out of public APIs.
+    pub fn dispatch_platform_input(&mut self, event: PlatformInput, cx: &mut App) {
+        let _ = self.dispatch_event(event, cx);
+    }
+
     fn dispatch_mouse_event(&mut self, event: &dyn Any, cx: &mut App) {
         let hit_test = self.rendered_frame.hit_test(self.mouse_position());
         if hit_test != self.mouse_hit_test {
